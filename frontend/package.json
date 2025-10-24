@@ -11,7 +11,7 @@
     "ishhrunning": "node ./scripts/is-hardhat-node-running.mjs",
     "build": "next build",
     "export": "next export",
-    "build:static": "npm run genabi && next build && next export",
+    "build:static": "npm run genabi && next build",
     "start": "next start"
   },
   "dependencies": {
