@@ -1,0 +1,79 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
+
+      - name: Install dependencies (frontend)
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
+      - name: Compute base path
+        id: base
+        run: |
+          OWNER="${{ github.repository_owner }}"
+          REPO="${{ github.event.repository.name }}"
+          if [ "$REPO" = "$OWNER.github.io" ]; then
+            echo "value=" >> $GITHUB_OUTPUT
+          else
+            echo "value=/$REPO" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate ABI (safe even if no deployments)
+        working-directory: frontend
+        run: npm run genabi || true
+
+      - name: Build static site
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_BASE_PATH: ${{ steps.base.outputs.value }}
+        run: npm run build:static
+
+      - name: Add .nojekyll for GitHub Pages
+        working-directory: frontend/out
+        run: |
+          touch .nojekyll
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+
